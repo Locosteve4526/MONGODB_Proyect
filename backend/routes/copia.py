@@ -1,52 +1,61 @@
-from flask import Blueprint, request, current_app, jsonify
-from bson.objectid import ObjectId
+from flask import Blueprint, current_app, jsonify, request, abort
 
-bp = Blueprint("copias", __name__)
+bp = Blueprint("copia", __name__)
 
-def col():
-    return current_app.config["DB"].copias
+# Colección: copias
+# Documento:
+# { "ISBN": "string", "numero": int }
 
 @bp.route("/", methods=["POST"])
 def crear_copia():
-    data = request.json
-    if "edicion_id" not in data:
-        return jsonify({"error": "Falta edicion_id"}), 400
-    data["edicion_id"] = ObjectId(data["edicion_id"])
-    if "estado" not in data:
-        data["estado"] = "Disponible"
-    res = col().insert_one(data)
-    return jsonify({"_id": str(res.inserted_id)}), 201
+    db = current_app.config["DB"]
+    data = request.get_json() or {}
+
+    ISBN = data.get("ISBN")
+    numero = data.get("numero")
+
+    if not ISBN or numero is None:
+        return jsonify({"error": "Se requieren ISBN y numero"}), 400
+    
+    try:
+        numero = int(numero)
+    except:
+        return jsonify({"error": "numero debe ser entero"}), 400
+
+    if db.ediciones.find_one({"ISBN": ISBN}) is None:
+        return jsonify({"error": "No existe una edición con ese ISBN"}), 400
+
+    if db.copias.find_one({"ISBN": ISBN, "numero": numero}):
+        return jsonify({"error": "La copia ya existe"}), 400
+    
+    db.copias.insert_one({"ISBN": ISBN, "numero": numero})
+    return jsonify({"msg": "Copia creada"}), 201
+
 
 @bp.route("/", methods=["GET"])
 def listar_copias():
-    docs = list(col().find())
-    for d in docs:
-        d["_id"] = str(d["_id"])
-        d["edicion_id"] = str(d["edicion_id"])
+    db = current_app.config["DB"]
+    docs = list(db.copias.find({}, {"_id":0}))
     return jsonify(docs), 200
 
-@bp.route("/<id>", methods=["GET"])
-def obtener_copia(id):
-    doc = col().find_one({"_id": ObjectId(id)})
-    if not doc:
-        return jsonify({"error": "No encontrado"}), 404
-    doc["_id"] = str(doc["_id"])
-    doc["edicion_id"] = str(doc["edicion_id"])
-    return jsonify(doc), 200
 
-@bp.route("/<id>", methods=["PUT"])
-def actualizar_copia(id):
-    data = request.json
-    if "edicion_id" in data:
-        data["edicion_id"] = ObjectId(data["edicion_id"])
-    res = col().update_one({"_id": ObjectId(id)}, {"$set": data})
-    if res.matched_count == 0:
-        return jsonify({"error": "No encontrado"}), 404
-    return jsonify({"modified": res.modified_count}), 200
+@bp.route("/<isbn>/<int:numero>", methods=["GET"])
+def obtener_copia(isbn, numero):
+    db = current_app.config["DB"]
+    copia = db.copias.find_one({"ISBN": isbn, "numero": numero}, {"_id": 0})
 
-@bp.route("/<id>", methods=["DELETE"])
-def borrar_copia(id):
-    res = col().delete_one({"_id": ObjectId(id)})
+    if not copia:
+        return jsonify({"error": "Copia no encontrada"}), 404
+
+    return jsonify(copia), 200
+
+
+@bp.route("/<isbn>/<int:numero>", methods=["DELETE"])
+def eliminar_copia(isbn, numero):
+    db = current_app.config["DB"]
+    res = db.copias.delete_one({"ISBN": isbn, "numero": numero})
+
     if res.deleted_count == 0:
-        return jsonify({"error": "No encontrado"}), 404
-    return jsonify({"deleted": res.deleted_count}), 200
+        return jsonify({"error": "Copia no encontrada"}), 404
+    
+    return jsonify({"msg": "Copia eliminada"}), 200

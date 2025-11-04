@@ -1,45 +1,68 @@
-from flask import Blueprint, request, current_app, jsonify
-from bson.objectid import ObjectId
+from flask import Blueprint, current_app, jsonify, request
+from datetime import datetime
 
-bp = Blueprint("prestamos", __name__)
+bp = Blueprint("prestamo", __name__)
 
-def col():
-    return current_app.config["DB"].prestamos
-
-def copias_col():
-    return current_app.config["DB"].copias
+# Documento:
+# { "rut": "...", "ISBN": "...", "numero": int, "fecha_prestamo": "...", "fecha_devolucion": None }
 
 @bp.route("/", methods=["POST"])
 def crear_prestamo():
-    data = request.json
-    # data debe contener: usuario_id (string), copia_id (string), fecha_prestamo, fecha_devolucion_estimada
-    copia = copias_col().find_one({"_id": ObjectId(data["copia_id"])})
-    if not copia:
-        return jsonify({"error": "Copia no existe"}), 404
-    if copia.get("estado") == "Prestado":
-        return jsonify({"error": "Copia ya prestada"}), 400
+    db = current_app.config["DB"]
+    data = request.get_json() or {}
 
-    # Insertar préstamo
-    res = col().insert_one({
-        "usuario_id": ObjectId(data["usuario_id"]),
-        "copia_id": ObjectId(data["copia_id"]),
-        "fecha_prestamo": data["fecha_prestamo"],
-        "fecha_devolucion_estimada": data["fecha_devolucion_estimada"],
-        "fecha_devolucion_real": None,
-        "estado": "Prestado"
-    })
-    # actualizar copia
-    copias_col().update_one({"_id": ObjectId(data["copia_id"])}, {"$set": {"estado": "Prestado"}})
-    return jsonify({"_id": str(res.inserted_id)}), 201
+    rut = data.get("rut")
+    ISBN = data.get("ISBN")
+    numero = data.get("numero")
 
-@bp.route("/<id>/devolver", methods=["POST"])
-def devolver_prestamo(id):
-    data = request.json  # { "fecha_devolucion_real": "YYYY-MM-DD" }
-    prest = col().find_one({"_id": ObjectId(id)})
-    if not prest:
-        return jsonify({"error": "Préstamo no encontrado"}), 404
-    # actualizar préstamo
-    col().update_one({"_id": ObjectId(id)}, {"$set": {"fecha_devolucion_real": data["fecha_devolucion_real"], "estado": "Devuelto"}})
-    # actualizar copia
-    copias_col().update_one({"_id": prest["copia_id"]}, {"$set": {"estado": "Disponible"}})
-    return jsonify({"msg": "Devolución registrada"}), 200
+    if not (rut and ISBN and numero is not None):
+        return jsonify({"error":"rut, ISBN y numero requeridos"}), 400
+    
+    try:
+        numero = int(numero)
+    except:
+        return jsonify({"error":"numero debe ser entero"}), 400
+
+    if not db.usuarios.find_one({"rut": rut}):
+        return jsonify({"error":"Usuario no existe"}), 400
+
+    if not db.copias.find_one({"ISBN": ISBN, "numero": numero}):
+        return jsonify({"error":"Copia no existe"}), 400
+
+    prestado = db.prestamos.find_one({"ISBN": ISBN, "numero": numero, "fecha_devolucion": None})
+    if prestado:
+        return jsonify({"error":"La copia ya está prestada"}), 400
+
+    fecha = datetime.utcnow().isoformat()
+    doc = {"rut": rut, "ISBN": ISBN, "numero": numero, "fecha_prestamo": fecha, "fecha_devolucion": None}
+
+    db.prestamos.insert_one(doc)
+    return jsonify({"msg":"Prestamo registrado"}), 201
+
+
+@bp.route("/devolver", methods=["POST"])
+def devolver():
+    db = current_app.config["DB"]
+    data = request.get_json() or {}
+
+    rut = data.get("rut")
+    ISBN = data.get("ISBN")
+    numero = data.get("numero")
+
+    if not (rut and ISBN and numero is not None):
+        return jsonify({"error":"rut, ISBN y numero requeridos"}), 400
+
+    p = db.prestamos.find_one({"rut": rut, "ISBN": ISBN, "numero": numero, "fecha_devolucion": None})
+    if not p:
+        return jsonify({"error":"No existe préstamo activo"}), 404
+
+    fecha = datetime.utcnow().isoformat()
+    db.prestamos.update_one({"_id": p["_id"]}, {"$set": {"fecha_devolucion": fecha}})
+    
+    return jsonify({"msg": "Devuelto correctamente"}), 200
+
+
+@bp.route("/", methods=["GET"])
+def listar():
+    db = current_app.config["DB"]
+    return jsonify(list(db.prestamos.find({},{"_id":0}))), 200

@@ -1,77 +1,59 @@
-from pymongo import MongoClient, ASCENDING
-from config import MONGO_URI, DB_NAME
+from pymongo import MongoClient
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
+DB_NAME = os.getenv("DB_NAME", "biblioteca_db")
 
 client = MongoClient(MONGO_URI)
 db = client[DB_NAME]
 
 def create_collections():
-    # Nombres: autores, libros, ediciones, copias, usuarios, prestamos
-    db.create_collection("autores" )
-    db.create_collection("libros")
-    db.create_collection("ediciones")
-    db.create_collection("copias")
-    db.create_collection("usuarios")
-    db.create_collection("prestamos")
+    for col in ["usuarios","autores","libros","ediciones","copias","prestamos"]:
+        if col in db.list_collection_names():
+            db[col].drop()
+        db.create_collection(col)
 
-    # Índices útiles (ejemplo)
-    db.autores.create_index([("apellido", ASCENDING)], name="idx_autor_apellido")
-    db.libros.create_index([("titulo", ASCENDING)], name="idx_libro_titulo")
-    db.ediciones.create_index([("isbn", ASCENDING)], name="idx_edicion_isbn", unique=True)
-    db.copias.create_index([("codigo_copia", ASCENDING)], name="idx_copia_codigo", unique=True)
-    db.usuarios.create_index([("documento", ASCENDING)], name="idx_usuario_documento", unique=True)
-    db.prestamos.create_index([("usuario_id", ASCENDING)], name="idx_prestamo_usuario")
-    print("Colecciones e índices creados.")
+    db.usuarios.create_index("rut", unique=True)
+    db.ediciones.create_index("ISBN", unique=True)
+    db.copias.create_index([("ISBN",1),("numero",1)], unique=True)
 
-def insert_sample_data():
-    # AUTOR
-    autor_id = db.autores.insert_one({
-        "nombre": "Gabriel",
-        "apellido": "García Márquez",
-        "pais": "Colombia",
-        "nacimiento": "1927-03-06"
-    }).inserted_id
 
-    libro_id = db.libros.insert_one({
-        "titulo": "Cien años de soledad",
-        "autor_id": autor_id,
-        "genero": "Novela",
-        "anio_publicacion": 1967
-    }).inserted_id
+def insert_sample():
+    db.usuarios.insert_many([
+        {"rut":"123","nombre":"Juan"},
+        {"rut":"456","nombre":"Ana"}
+    ])
+    
+    db.autores.insert_many([
+        {"nombre":"Gabriel García Márquez"},
+        {"nombre":"Isabel Allende"}
+    ])
 
-    edicion_id = db.ediciones.insert_one({
-        "libro_id": libro_id,
-        "isbn": "978-0307474728",
-        "editorial": "Sudamericana",
-        "anio": 2003,
-        "formato": "Tapa blanda"
-    }).inserted_id
+    db.libros.insert_many([
+        {"titulo":"Cien años de soledad","autores":["Gabriel García Márquez"]},
+        {"titulo":"La casa de los espiritus","autores":["Isabel Allende"]}
+    ])
 
-    copia_id = db.copias.insert_one({
-        "edicion_id": edicion_id,
-        "codigo_copia": "C-0001",
-        "estado": "Disponible",
-        "ubicacion": "Estantería 1"
-    }).inserted_id
+    db.ediciones.insert_many([
+        {"ISBN":"ISBN001","libro":"Cien años de soledad","año":1967,"idioma":"Español"},
+        {"ISBN":"ISBN002","libro":"La casa de los espiritus","año":1982,"idioma":"Español"}
+    ])
 
-    usuario_id = db.usuarios.insert_one({
-        "nombre": "Juan",
-        "apellido": "Pérez",
-        "documento": "1098765432",
-        "telefono": "3001234567",
-        "email": "juan@example.com"
-    }).inserted_id
+    db.copias.insert_many([
+        {"ISBN":"ISBN001","numero":1},
+        {"ISBN":"ISBN001","numero":2},
+        {"ISBN":"ISBN002","numero":1}
+    ])
 
-    prestamos_id = db.prestamos.insert_one({
-        "usuario_id": usuario_id,
-        "copia_id": copia_id,
-        "fecha_prestamo": "2025-10-01",
-        "fecha_devolucion_estimada": "2025-10-15",
-        "fecha_devolucion_real": None,
-        "estado": "Prestado"
-    }).inserted_id
+    db.prestamos.insert_one(
+        {"rut":"123","ISBN":"ISBN001","numero":1,"fecha_prestamo":"2025-01-01","fecha_devolucion":None}
+    )
 
-    print("Datos de ejemplo insertados.")
 
 if __name__ == "__main__":
     create_collections()
-    insert_sample_data()
+    insert_sample()
+    print("Base de datos inicializada ")
