@@ -8,36 +8,42 @@ def col():
 
 @bp.route("/", methods=["POST"])
 def crear_autor():
-    data = request.json
-    res = col().insert_one(data)
-    return jsonify({"_id": str(res.inserted_id)}), 201
+    data = request.json or {}
+    nombre = (data.get("nombre") or "").strip()
+    if not nombre:
+        return jsonify({"error": "Falta nombre"}), 400
+    if col().find_one({"nombre": nombre}):
+        return jsonify({"error": "Autor ya existe"}), 400
+    col().insert_one({"nombre": nombre})
+    return jsonify({"msg": "Autor creado", "nombre": nombre}), 201
 
 @bp.route("/", methods=["GET"])
 def listar_autores():
-    docs = list(col().find())
-    for d in docs:
-        d["_id"] = str(d["_id"])
+    docs = list(col().find({}, {"_id": 0}))
     return jsonify(docs), 200
 
-@bp.route("/<id>", methods=["GET"])
-def obtener_autor(id):
-    doc = col().find_one({"_id": ObjectId(id)})
+@bp.route("/<string:nombre>", methods=["GET"])
+def obtener_autor(nombre):
+    doc = col().find_one({"nombre": nombre}, {"_id": 0})
     if not doc:
-        return jsonify({"error": "No encontrado"}), 404
-    doc["_id"] = str(doc["_id"])
+        return jsonify({"error": "Autor no encontrado"}), 404
     return jsonify(doc), 200
 
-@bp.route("/<id>", methods=["PUT"])
-def actualizar_autor(id):
-    data = request.json
-    res = col().update_one({"_id": ObjectId(id)}, {"$set": data})
+@bp.route("/<string:nombre>", methods=["PUT"])
+def actualizar_autor(nombre):
+    data = request.json or {}
+    nuevo_nombre = data.get("nombre")
+    if nuevo_nombre and nuevo_nombre != nombre:
+        if col().find_one({"nombre": nuevo_nombre}):
+            return jsonify({"error": "Nuevo nombre ya existe"}), 400
+    res = col().update_one({"nombre": nombre}, {"$set": data})
     if res.matched_count == 0:
-        return jsonify({"error": "No encontrado"}), 404
-    return jsonify({"modified": res.modified_count}), 200
+        return jsonify({"error": "Autor no encontrado"}), 404
+    return jsonify({"msg": "Autor actualizado"}), 200
 
-@bp.route("/<id>", methods=["DELETE"])
-def borrar_autor(id):
-    res = col().delete_one({"_id": ObjectId(id)})
+@bp.route("/<string:nombre>", methods=["DELETE"])
+def borrar_autor(nombre):
+    res = col().delete_one({"nombre": nombre})
     if res.deleted_count == 0:
-        return jsonify({"error": "No encontrado"}), 404
-    return jsonify({"deleted": res.deleted_count}), 200
+        return jsonify({"error": "Autor no encontrado"}), 404
+    return jsonify({"msg": "Autor eliminado"}), 200

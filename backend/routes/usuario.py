@@ -8,41 +8,42 @@ def col():
 
 @bp.route("/", methods=["POST"])
 def crear_usuario():
-    data = request.json
-    # Validar campos mínimos
-    required = ["nombre", "apellido", "documento"]
-    for f in required:
-        if f not in data:
-            return jsonify({"error": f"Falta {f}"}), 400
-    res = col().insert_one(data)
-    return jsonify({"_id": str(res.inserted_id)}), 201
+    data = request.json or {}
+    RUT = (data.get("RUT") or "").strip()
+    nombre = (data.get("nombre") or "").strip()
+    if not RUT or not nombre:
+        return jsonify({"error": "Faltan RUT o nombre"}), 400
+    if col().find_one({"RUT": RUT}):
+        return jsonify({"error": "Usuario ya existe"}), 400
+    col().insert_one({"RUT": RUT, "nombre": nombre})
+    return jsonify({"msg": "Usuario creado", "RUT": RUT}), 201
 
 @bp.route("/", methods=["GET"])
 def listar_usuarios():
-    docs = list(col().find())
-    for d in docs:
-        d["_id"] = str(d["_id"])
+    docs = list(col().find({}, {"_id": 0}))
     return jsonify(docs), 200
 
-@bp.route("/<id>", methods=["GET"])
-def obtener_usuario(id):
-    doc = col().find_one({"_id": ObjectId(id)})
+@bp.route("/<string:RUT>", methods=["GET"])
+def obtener_usuario(RUT):
+    doc = col().find_one({"RUT": RUT}, {"_id": 0})
     if not doc:
-        return jsonify({"error": "No encontrado"}), 404
-    doc["_id"] = str(doc["_id"])
+        return jsonify({"error": "Usuario no encontrado"}), 404
     return jsonify(doc), 200
 
-@bp.route("/<id>", methods=["PUT"])
-def actualizar_usuario(id):
-    data = request.json
-    res = col().update_one({"_id": ObjectId(id)}, {"$set": data})
+@bp.route("/<string:RUT>", methods=["PUT"])
+def actualizar_usuario(RUT):
+    data = request.json or {}
+    if "RUT" in data and data["RUT"] != RUT:
+        if col().find_one({"RUT": data["RUT"]}):
+            return jsonify({"error": "Nuevo RUT ya existe"}), 400
+    res = col().update_one({"RUT": RUT}, {"$set": data})
     if res.matched_count == 0:
-        return jsonify({"error": "No encontrado"}), 404
-    return jsonify({"modified": res.modified_count}), 200
+        return jsonify({"error": "Usuario no encontrado"}), 404
+    return jsonify({"msg": "Usuario actualizado"}), 200
 
-@bp.route("/<id>", methods=["DELETE"])
-def borrar_usuario(id):
-    res = col().delete_one({"_id": ObjectId(id)})
+@bp.route("/<string:RUT>", methods=["DELETE"])
+def borrar_usuario(RUT):
+    res = col().delete_one({"RUT": RUT})
     if res.deleted_count == 0:
-        return jsonify({"error": "No encontrado"}), 404
-    return jsonify({"deleted": res.deleted_count}), 200
+        return jsonify({"error": "Usuario no encontrado"}), 404
+    return jsonify({"msg": "Usuario eliminado"}), 200

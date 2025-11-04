@@ -6,40 +6,108 @@ bp = Blueprint("prestamos", __name__)
 def col():
     return current_app.config["DB"].prestamos
 
+def usuarios_col():
+    return current_app.config["DB"].usuarios
+
 def copias_col():
     return current_app.config["DB"].copias
 
+
 @bp.route("/", methods=["POST"])
 def crear_prestamo():
-    data = request.json
-    # data debe contener: usuario_id (string), copia_id (string), fecha_prestamo, fecha_devolucion_estimada
-    copia = copias_col().find_one({"_id": ObjectId(data["copia_id"])})
-    if not copia:
-        return jsonify({"error": "Copia no existe"}), 404
-    if copia.get("estado") == "Prestado":
-        return jsonify({"error": "Copia ya prestada"}), 400
+    data = request.json or {}
+    RUT = (data.get("RUT") or "").strip()
+    ISBN = (data.get("ISBN") or "").strip()
+    numero = data.get("numero")
+    Fecha_prestamo = (data.get("Fecha_prestamo") or "").strip()
+    Fecha_devolucion = (data.get("Fecha_devolucion") or "").strip()
 
-    # Insertar préstamo
-    res = col().insert_one({
-        "usuario_id": ObjectId(data["usuario_id"]),
-        "copia_id": ObjectId(data["copia_id"]),
-        "fecha_prestamo": data["fecha_prestamo"],
-        "fecha_devolucion_estimada": data["fecha_devolucion_estimada"],
-        "fecha_devolucion_real": None,
-        "estado": "Prestado"
+    if not (RUT and ISBN and numero is not None and Fecha_prestamo and Fecha_devolucion):
+        return jsonify({"error": "Faltan campos requeridos"}), 400
+
+    # Validación FK
+    if not usuarios_col().find_one({"RUT": RUT}):
+        return jsonify({"error": f"Usuario no existe: {RUT}"}), 400
+
+    if not copias_col().find_one({"ISBN": ISBN, "numero": numero}):
+        return jsonify({"error": f"Copia no existe: ISBN {ISBN} Numero {numero}"}), 400
+
+    col().insert_one({
+        "RUT": RUT,
+        "ISBN": ISBN,
+        "numero": numero,
+        "Fecha_prestamo": Fecha_prestamo,
+        "Fecha_devolucion": Fecha_devolucion
     })
-    # actualizar copia
-    copias_col().update_one({"_id": ObjectId(data["copia_id"])}, {"$set": {"estado": "Prestado"}})
-    return jsonify({"_id": str(res.inserted_id)}), 201
 
-@bp.route("/<id>/devolver", methods=["POST"])
-def devolver_prestamo(id):
-    data = request.json  # { "fecha_devolucion_real": "YYYY-MM-DD" }
-    prest = col().find_one({"_id": ObjectId(id)})
-    if not prest:
+    return jsonify({"msg": "Préstamo registrado correctamente"}), 201
+
+
+
+@bp.route("/", methods=["GET"])
+def listar_prestamos():
+    docs = list(col().find({}, {"_id": 0}))
+    return jsonify(docs), 200
+
+
+
+@bp.route("/buscar", methods=["GET"])
+def obtener_prestamo():
+    RUT = request.args.get("RUT")
+    ISBN = request.args.get("ISBN")
+    numero = request.args.get("numero", type=int)
+
+    query = {}
+    if RUT: query["RUT"] = RUT
+    if ISBN: query["ISBN"] = ISBN
+    if numero is not None: query["numero"] = numero
+
+    prestamo = col().find_one(query, {"_id": 0})
+    if not prestamo:
+        return jsonify({"error": "No se encontró el préstamo"}), 404
+
+    return jsonify(prestamo), 200
+
+
+
+@bp.route("/actualizar", methods=["PUT"])
+def actualizar_prestamo():
+    data = request.json or {}
+
+    RUT = data.get("RUT")
+    ISBN = data.get("ISBN")
+    numero = data.get("numero")
+
+    if not (RUT and ISBN and numero is not None):
+        return jsonify({"error": "Debe enviar RUT, ISBN y numero del préstamo a actualizar"}), 400
+
+    if not col().find_one({"RUT": RUT, "ISBN": ISBN, "numero": numero}):
+        return jsonify({"error": "Préstamo no existe"}), 404
+
+    update_fields = {k: v for k, v in data.items() if k not in ["RUT", "ISBN", "numero"]}
+
+    if not update_fields:
+        return jsonify({"error": "No hay campos para actualizar"}), 400
+
+    col().update_one({"RUT": RUT, "ISBN": ISBN, "numero": numero}, {"$set": update_fields})
+
+    return jsonify({"msg": "Préstamo actualizado correctamente"}), 200
+
+
+
+@bp.route("/eliminar", methods=["DELETE"])
+def eliminar_prestamo():
+    data = request.json or {}
+    RUT = data.get("RUT")
+    ISBN = data.get("ISBN")
+    numero = data.get("numero")
+
+    if not (RUT and ISBN and numero is not None):
+        return jsonify({"error": "Debe enviar RUT, ISBN y numero del préstamo a eliminar"}), 400
+
+    res = col().delete_one({"RUT": RUT, "ISBN": ISBN, "numero": numero})
+
+    if res.deleted_count == 0:
         return jsonify({"error": "Préstamo no encontrado"}), 404
-    # actualizar préstamo
-    col().update_one({"_id": ObjectId(id)}, {"$set": {"fecha_devolucion_real": data["fecha_devolucion_real"], "estado": "Devuelto"}})
-    # actualizar copia
-    copias_col().update_one({"_id": prest["copia_id"]}, {"$set": {"estado": "Disponible"}})
-    return jsonify({"msg": "Devolución registrada"}), 200
+
+    return jsonify({"msg": "Préstamo eliminado correctamente"}), 200

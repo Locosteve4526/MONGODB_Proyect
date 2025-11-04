@@ -4,74 +4,100 @@ from config import MONGO_URI, DB_NAME
 client = MongoClient(MONGO_URI)
 db = client[DB_NAME]
 
-def create_collections():
-    # Nombres: autores, libros, ediciones, copias, usuarios, prestamos
-    db.create_collection("autores" )
-    db.create_collection("libros")
-    db.create_collection("ediciones")
-    db.create_collection("copias")
-    db.create_collection("usuarios")
-    db.create_collection("prestamos")
+def create_collection_if_not_exists(name):
+    """Crea la colección solo si no existe en la BD."""
+    existing_collections = db.list_collection_names()
+    if name not in existing_collections:
+        db.create_collection(name)
+        print(f" Colección creada: {name}")
+    else:
+        print(f" Colección ya existe: {name}")
 
-    # Índices útiles (ejemplo)
-    db.autores.create_index([("apellido", ASCENDING)], name="idx_autor_apellido")
-    db.libros.create_index([("titulo", ASCENDING)], name="idx_libro_titulo")
-    db.ediciones.create_index([("isbn", ASCENDING)], name="idx_edicion_isbn", unique=True)
-    db.copias.create_index([("codigo_copia", ASCENDING)], name="idx_copia_codigo", unique=True)
-    db.usuarios.create_index([("documento", ASCENDING)], name="idx_usuario_documento", unique=True)
-    db.prestamos.create_index([("usuario_id", ASCENDING)], name="idx_prestamo_usuario")
-    print("Colecciones e índices creados.")
+def create_collections():
+    collections = ["autores", "libros", "ediciones", "copias", "usuarios", "prestamos"]
+    for name in collections:
+        create_collection_if_not_exists(name)
+
+    # Índices únicos para PKs naturales
+    db.autor.create_index([("nombre", ASCENDING)], name="uq_autor_nombre", unique=True)
+    db.libro.create_index([("titulo", ASCENDING)], name="uq_libro_titulo", unique=True)
+    db.edicion.create_index([("ISBN", ASCENDING)], name="uq_edicion_ISBN", unique=True)
+    db.usuario.create_index([("RUT", ASCENDING)], name="uq_usuario_RUT", unique=True)
+    # Índice compuesto único para copias (entidad débil)
+    db.copia.create_index([("ISBN", ASCENDING), ("numero", ASCENDING)], name="uq_copia_ISBN_numero", unique=True)
+    # Índice para facilitar consultas de préstamos
+    db.prestamo.create_index([("RUT", ASCENDING)], name="idx_prestamo_RUT")
+    db.prestamo.create_index([("ISBN", ASCENDING), ("numero", ASCENDING)], name="idx_prestamo_copia")
+
+    print("\n Colecciones e índices listos.\n")
+
 
 def insert_sample_data():
-    # AUTOR
-    autor_id = db.autores.insert_one({
-        "nombre": "Gabriel",
-        "apellido": "García Márquez",
-        "pais": "Colombia",
-        "nacimiento": "1927-03-06"
-    }).inserted_id
+    # Insertar ejemplo solo si no existe la edición de ejemplo
+    if db.ediciones.find_one({"ISBN": "978-0307474728"}):
+        print("ℹ️ Datos de ejemplo ya existen. No se insertarán nuevos datos.")
+        return
 
-    libro_id = db.libros.insert_one({
-        "titulo": "Cien años de soledad",
-        "autor_id": autor_id,
-        "genero": "Novela",
-        "anio_publicacion": 1967
-    }).inserted_id
+    # Autor (PK: nombre)
+    try:
+        db.autores.insert_one({"nombre": "Gabriel García Márquez"})
+    except Exception:
+        pass
 
-    edicion_id = db.ediciones.insert_one({
-        "libro_id": libro_id,
-        "isbn": "978-0307474728",
-        "editorial": "Sudamericana",
-        "anio": 2003,
-        "formato": "Tapa blanda"
-    }).inserted_id
+    # Libro (PK: titulo, autores: array de nombres)
+    try:
+        db.libros.insert_one({
+            "titulo": "Cien años de soledad",
+            "autores": ["Gabriel García Márquez"]
+        })
+    except Exception:
+        pass
 
-    copia_id = db.copias.insert_one({
-        "edicion_id": edicion_id,
-        "codigo_copia": "C-0001",
-        "estado": "Disponible",
-        "ubicacion": "Estantería 1"
-    }).inserted_id
+    # Edicion (PK: ISBN, referencia a libro por titulo)
+    try:
+        db.ediciones.insert_one({
+            "ISBN": "978-0307474728",
+            "titulo": "Cien años de soledad",
+            "anio": 2003,
+            "idioma": "Español"
+        })
+    except Exception:
+        pass
 
-    usuario_id = db.usuarios.insert_one({
-        "nombre": "Juan",
-        "apellido": "Pérez",
-        "documento": "1098765432",
-        "telefono": "3001234567",
-        "email": "juan@example.com"
-    }).inserted_id
+    # Copia (entidad débil) - clave parcial numero + ISBN
+    try:
+        db.copias.insert_one({
+            "ISBN": "978-0307474728",
+            "numero": 1
+        })
+    except Exception:
+        pass
 
-    prestamos_id = db.prestamos.insert_one({
-        "usuario_id": usuario_id,
-        "copia_id": copia_id,
-        "fecha_prestamo": "2025-10-01",
-        "fecha_devolucion_estimada": "2025-10-15",
-        "fecha_devolucion_real": None,
-        "estado": "Prestado"
-    }).inserted_id
+    # Usuario (PK: RUT)
+    try:
+        db.usuarios.insert_one({
+            "RUT": "109876543-2",
+            "nombre": "Juan Pérez"
+        })
+    except Exception:
+        pass
 
-    print("Datos de ejemplo insertados.")
+    # Prestamo (relación)
+    try:
+        db.prestamos.insert_one({
+            "RUT": "109876543-2",
+            "ISBN": "978-0307474728",
+            "numero": 1,
+            "Fecha_prestamo": "2025-11-03",
+            "Fecha_devolucion": "2025-11-15"
+        })
+    except Exception:
+        pass
+
+    print("✅ Datos de ejemplo insertados (o ya existían).")
 
 if __name__ == "__main__":
+    print("⏳ Inicializando base de datos...")
     create_collections()
     insert_sample_data()
+    print("🎉 Base de datos lista.")
