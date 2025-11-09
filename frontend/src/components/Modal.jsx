@@ -36,17 +36,74 @@ export const Modal = ({ closeModal, onSubmit, defaultValue, formFields, entityTy
 
     if (!validateForm()) return;
 
-    onSubmit(formState);
+    console.log("=== MODAL SUBMIT ===");
+    console.log("📋 Form State Original:", formState);
+    console.log("🏷️ Entity Type:", entityType);
+
+    // Limpiar y transformar los datos según la entidad
+    const cleanedData = {};
+
+    for (const [key, value] of Object.entries(formState)) {
+      // Saltar campos vacíos
+      if (value === "" || value === null || value === undefined) {
+        console.log(`⏭️ Saltando campo vacío: ${key}`);
+        continue;
+      }
+
+      // Procesar según el tipo de campo y entidad
+      if (key === "numero" && entityType === 5) {
+        // Número de copia - debe ser número entero
+        cleanedData[key] = parseInt(value, 10);
+        console.log(`🔢 Convirtiendo ${key} a número:`, cleanedData[key]);
+      } else if (key === "anio" && entityType === 4) {
+        // Año de edición - debe ser número entero
+        cleanedData[key] = parseInt(value, 10);
+        console.log(`🔢 Convirtiendo ${key} a número:`, cleanedData[key]);
+      } else if (key === "autores" && entityType === 3) {
+        // Autores de libro - debe ser array
+        const authorsArray = value.split(",").map(author => author.trim()).filter(a => a);
+        cleanedData[key] = authorsArray;
+        console.log(`📚 Convirtiendo ${key} a array:`, cleanedData[key]);
+      } else {
+        // Otros campos se envían como string limpio
+        cleanedData[key] = typeof value === "string" ? value.trim() : value;
+        console.log(`✏️ Campo ${key}:`, cleanedData[key]);
+      }
+    }
+
+    console.log("✅ Datos limpiados a enviar:", cleanedData);
+    console.log("📤 JSON final:", JSON.stringify(cleanedData, null, 2));
+
+    onSubmit(cleanedData);
 
     closeModal();
   };
 
   // Función para determinar el tipo de input
   const getInputType = (field) => {
-    if (field === "fechorCom" || field === "fechorAut") {
-      return "datetime-local";
+    if (field === "fechorCom" || field === "fechorAut" || field === "Fecha_prestamo" || field === "Fecha_devolucion") {
+      return "date";
+    }
+    if (field === "anio" || field === "numero") {
+      return "number";
     }
     return "text";
+  };
+
+  // Función para obtener placeholder apropiado
+  const getPlaceholder = (field, entityType) => {
+    if (field === "RUT") return "Ej: 12345678-9";
+    if (field === "nombre" && entityType === 1) return "Nombre del usuario";
+    if (field === "nombre" && entityType === 2) return "Nombre del autor";
+    if (field === "titulo") return "Título del libro";
+    if (field === "autores") return "Autor1, Autor2, Autor3...";
+    if (field === "ISBN") return "Ej: 978-3-16-148410-0";
+    if (field === "anio") return "Ej: 2023";
+    if (field === "idioma") return "Ej: Español";
+    if (field === "numero") return "Número de copia";
+    if (field === "Fecha_prestamo") return "Fecha de préstamo";
+    if (field === "Fecha_devolucion") return "Fecha de devolución";
+    return "";
   };
 
   return (
@@ -90,10 +147,7 @@ export const Modal = ({ closeModal, onSubmit, defaultValue, formFields, entityTy
                     name={field}
                     value={formState[field] || ""}
                     onChange={handleChange}
-                    placeholder={
-                      field === "fechorCom" ? "Fecha del comentario" :
-                      field === "fechorAut" ? "Fecha de autorización" : ""
-                    }
+                    placeholder={getPlaceholder(field, entityType)}
                     style={{
                       fontFamily: "Arial, Helvetica, sans-serif"
                     }}

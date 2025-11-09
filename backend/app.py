@@ -8,6 +8,8 @@ db = client[DB_NAME]
 
 def create_app():
     app = Flask(__name__)
+    
+    # CORS simple - permite todo en desarrollo
     CORS(app)
 
     # Inyecta db para usar en routes
@@ -33,9 +35,15 @@ def create_app():
     @app.route("/")
     def home():
         return jsonify({"msg": "API Biblioteca en Flask - funcionando"}), 200
+    
+    # Ruta de prueba para verificar conexión
+    @app.route("/test")
+    def test():
+        return jsonify({"status": "ok", "message": "Backend funcionando correctamente"}), 200
 
     return app
 
 if __name__ == "__main__":
     app = create_app()
+    print("🚀 Servidor Flask iniciando en http://localhost:5000")
     app.run(host="0.0.0.0", port=5000, debug=True)

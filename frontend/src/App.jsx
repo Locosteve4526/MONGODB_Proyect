@@ -15,11 +15,10 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Estados para Inciso C
-  const [selectedUserId, setSelectedUserId] = useState("");
-  const [selectedPostId, setSelectedPostId] = useState("");
-  const [postsUsuario, setPostsUsuario] = useState([]);
-  const [comentariosPost, setComentariosPost] = useState([]);
+  // Estados para consultas
+  const [selectedRUT, setSelectedRUT] = useState("");
+  const [copiasList, setCopiasList] = useState([]);
+  const [librosPrestados, setLibrosPrestados] = useState([]);
   const [loadingConsulta1, setLoadingConsulta1] = useState(false);
   const [loadingConsulta2, setLoadingConsulta2] = useState(false);
 
@@ -46,38 +45,38 @@ function App() {
 
     try {
       const config = tabConfig[selectedTab];
-      console.log(`🔍 Fetching from: http://localhost:5000${config.endpoint}`);
+      const url = `http://localhost:5000${config.endpoint}/`;
+      console.log(`🔍 Fetching from: ${url}`);
 
-      const response = await fetch(`http://localhost:5000${config.endpoint}`, {
+      const response = await fetch(url, {
         method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
+      console.log(`📡 Response status: ${response.status}`);
+
       if (!response.ok) {
-        throw new Error(`Error: ${response.status}`);
+        const errorText = await response.text();
+        console.error(`❌ Error response: ${errorText}`);
+        throw new Error(`Error ${response.status}: ${errorText}`);
       }
 
       const data = await response.json();
       console.log(`📦 Data received from backend:`, data);
 
-      // Transformar datos según el tipo de entidad
-      const transformedData = transformDataByTab(data, selectedTab);
-      console.log(`✨ Transformed data:`, transformedData);
-
-      setRows(transformedData);
+      setRows(data);
     } catch (err) {
-      setError(err.message);
+      const errorMsg = err.message.includes("Failed to fetch") 
+        ? "No se puede conectar al servidor. Verifica que Flask esté corriendo en http://localhost:5000"
+        : err.message;
+      setError(errorMsg);
       console.error("❌ Error fetching data:", err);
       setRows([]);
     } finally {
       setLoading(false);
     }
-  };
-
-  // Transformar datos según la estructura esperada
-  const transformDataByTab = (data, tab) => {
-    // Los datos ya vienen con la estructura correcta desde el backend
-    // Solo retornamos los datos tal como están
-    return data;
   };
 
   const handleEditRow = (idx) => {
@@ -89,52 +88,87 @@ function App() {
     const config = tabConfig[selectedTab];
     const rowToDelete = rows[targetIndex];
 
+    console.log("🗑️ Datos de la fila a eliminar:", rowToDelete);
+
     // Obtener el ID correcto según el tipo de entidad
     let nodeId;
     if (selectedTab === 1) {
-      nodeId = rowToDelete.rut;
+      // Para usuarios, el backend busca por "rut" en minúscula
+      nodeId = encodeURIComponent(rowToDelete.rut || rowToDelete.RUT);
     } else if (selectedTab === 2) {
-      nodeId = rowToDelete.nombre;
+      nodeId = encodeURIComponent(rowToDelete.nombre);
     } else if (selectedTab === 3) {
-      nodeId = rowToDelete.titulo;
+      nodeId = encodeURIComponent(rowToDelete.titulo);
     } else if (selectedTab === 4) {
-      nodeId = rowToDelete.isbn;
+      nodeId = encodeURIComponent(rowToDelete.ISBN);
     } else if (selectedTab === 5) {
-      nodeId = [rowToDelete.isbn, rowToDelete.numero];
+      const isbn = encodeURIComponent(rowToDelete.ISBN);
+      const numero = encodeURIComponent(rowToDelete.numero);
+      nodeId = `${isbn}/${numero}`;
     } else if (selectedTab === 6) {
-      nodeId = [rowToDelete.rut, rowToDelete.isbn, rowToDelete.numero];
+      const rut = encodeURIComponent(rowToDelete.rut || rowToDelete.RUT);
+      const isbn = encodeURIComponent(rowToDelete.ISBN);
+      const numero = encodeURIComponent(rowToDelete.numero);
+      nodeId = `${rut}/${isbn}/${numero}`;
+    }
+
+    console.log("🗑️ Eliminando con ID codificado:", nodeId);
+    console.log("🗑️ URL completa:", `http://localhost:5000${config.endpoint}/${nodeId}`);
+
+    if (!confirm(`¿Estás seguro de eliminar este registro?`)) {
+      return;
     }
 
     try {
       const response = await fetch(
         `http://localhost:5000${config.endpoint}/${nodeId}`,
-        { method: "DELETE" }
+        { 
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          }
+        }
       );
 
+      console.log("📡 DELETE Response status:", response.status);
+
       if (!response.ok) {
-        throw new Error("Error al eliminar");
+        const errorData = await response.text();
+        console.error("❌ Error response:", errorData);
+        throw new Error(errorData || "Error al eliminar");
       }
 
       // Actualizar UI
       setRows(rows.filter((row, index) => index !== targetIndex));
+      alert("¡Registro eliminado exitosamente!");
     } catch (err) {
       setError(err.message);
-      console.error("Error deleting:", err);
+      console.error("❌ Error deleting:", err);
+      alert(`Error al eliminar: ${err.message}`);
     }
   };
 
   const handleSubmit = async (newRow) => {
     const config = tabConfig[selectedTab];
 
+    console.log("=== HANDLE SUBMIT ===");
+    console.log("📥 Datos recibidos del formulario (newRow):", newRow);
+    console.log("📋 Tipo de datos:", typeof newRow);
+    console.log("🏷️ Tab seleccionado:", selectedTab, "- Entidad:", config.label);
+
     // Los datos ya vienen con los campos correctos del formulario
     const dataToSend = { ...newRow };
-    console.log(JSON.stringify(dataToSend));
+    console.log("📤 Datos a enviar (dataToSend):", dataToSend);
+    console.log("📤 JSON stringified:", JSON.stringify(dataToSend, null, 2));
 
     try {
       if (rowToEdit === null) {
-        // Crear nuevo
+        // ========== CREAR NUEVO ==========
+        console.log("➕ MODO: Creando nuevo registro");
+        console.log("🔗 URL:", `http://localhost:5000${config.endpoint}/`);
+        
         const response = await fetch(
-          `http://localhost:5000${config.endpoint}`,
+          `http://localhost:5000${config.endpoint}/`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -142,32 +176,62 @@ function App() {
           }
         );
 
+        console.log("📡 POST Response status:", response.status);
+        console.log("📡 POST Response ok:", response.ok);
+
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || `Error: ${response.status}`);
+          const responseText = await response.text();
+          console.error("❌ Error response (texto):", responseText);
+          
+          let errorData;
+          try {
+            errorData = JSON.parse(responseText);
+            console.error("❌ Error response (JSON):", errorData);
+          } catch {
+            errorData = { error: responseText };
+          }
+          
+          throw new Error(errorData.error || responseText || `Error: ${response.status}`);
         }
+
+        const responseData = await response.json();
+        console.log("✅ Respuesta exitosa del servidor:", responseData);
 
         // Cerrar modal y recargar datos
         setModalOpen(false);
+        setRowToEdit(null);
         await fetchData();
         alert("¡Registro creado exitosamente!");
       } else {
-        // Actualizar existente
+        // ========== ACTUALIZAR EXISTENTE ==========
         const rowData = rows[rowToEdit];
+        console.log("📝 Datos del row original:", rowData);
+        
         let nodeId;
+        
         if (selectedTab === 1) {
-          nodeId = rowToDelete.rut;
+          // Para usuarios, el backend busca por "RUT" en mayúscula para UPDATE
+          nodeId = encodeURIComponent(rowData.rut || rowData.RUT);
         } else if (selectedTab === 2) {
-          nodeId = rowToDelete.nombre;
+          nodeId = encodeURIComponent(rowData.nombre);
         } else if (selectedTab === 3) {
-          nodeId = rowToDelete.titulo;
+          nodeId = encodeURIComponent(rowData.titulo);
         } else if (selectedTab === 4) {
-          nodeId = rowToDelete.isbn;
+          nodeId = encodeURIComponent(rowData.ISBN);
         } else if (selectedTab === 5) {
-          nodeId = [rowToDelete.isbn, rowToDelete.numero];
+          const isbn = encodeURIComponent(rowData.ISBN);
+          const numero = encodeURIComponent(rowData.numero);
+          nodeId = `${isbn}/${numero}`;
         } else if (selectedTab === 6) {
-          nodeId = [rowToDelete.rut, rowToDelete.isbn, rowToDelete.numero];
+          const rut = encodeURIComponent(rowData.rut || rowData.RUT);
+          const isbn = encodeURIComponent(rowData.ISBN);
+          const numero = encodeURIComponent(rowData.numero);
+          nodeId = `${rut}/${isbn}/${numero}`;
         }
+
+        console.log("🔄 Actualizando con ID:", nodeId);
+        console.log("🔄 URL:", `http://localhost:5000${config.endpoint}/${nodeId}`);
+        console.log("📝 Datos a actualizar:", dataToSend);
 
         const response = await fetch(
           `http://localhost:5000${config.endpoint}/${nodeId}`,
@@ -178,19 +242,29 @@ function App() {
           }
         );
 
+        console.log("📡 PUT Response status:", response.status);
+
         if (!response.ok) {
-          const errorData = await response.json();
+          const errorText = await response.text();
+          console.error("❌ Error del servidor:", errorText);
+          let errorData;
+          try {
+            errorData = JSON.parse(errorText);
+          } catch {
+            errorData = { error: errorText };
+          }
           throw new Error(errorData.error || `Error: ${response.status}`);
         }
 
         // Cerrar modal y recargar datos
         setModalOpen(false);
+        setRowToEdit(null);
         await fetchData();
         alert("¡Registro actualizado exitosamente!");
       }
     } catch (err) {
       setError(err.message);
-      console.error("Error submitting:", err);
+      console.error("❌ Error submitting:", err);
       alert(`Error: ${err.message}`);
     }
   };
@@ -199,96 +273,147 @@ function App() {
   const getFormFields = () => {
     if (selectedTab === null) return [];
 
-    if (rows.length > 0) {
-      return Object.keys(rows[0]);
-    }
-
-    // Retornar campos por defecto según el tab cuando no hay datos
+    // Siempre usar campos consistentes, independientemente de si hay datos o no
     switch (selectedTab) {
-      case 1:
-        return ["rut", "nombre"];
-      case 2:
+      case 1: // Usuarios
+        return ["RUT", "nombre"];
+      case 2: // Autores
         return ["nombre"];
-      case 3:
-        return ["titulo, autores"];
-      case 4:
-        return ["ISBN", "libro", "año", "idioma"];
-      case 5:
+      case 3: // Libros
+        return ["titulo", "autores"];
+      case 4: // Ediciones
+        return ["ISBN", "titulo", "anio", "idioma"];
+      case 5: // Copias
         return ["ISBN", "numero"];
-      case 6:
-        return ["rut", "ISBN", "numero", "fecha prestamo", "fecha devolucion"];
+      case 6: // Préstamos
+        return ["RUT", "ISBN", "numero", "Fecha_prestamo", "Fecha_devolucion"];
       default:
         return [];
     }
   };
 
-  // Función para consultar posts de un usuario (Inciso C - Consulta 1)
-  const consultarPostsUsuario = async () => {
+  // ========== CONSULTA 1: Copias con detalle ==========
+  const consultarCopiasDetalle = async () => {
     console.log("=== CONSULTA 1 INICIADA ===");
-    console.log("Usuario ID:", selectedUserId);
-
-    if (!selectedUserId) {
-      alert("Por favor ingresa un ID de Usuario");
-      return;
-    }
-
+    
     setLoadingConsulta1(true);
+    setCopiasList([]); // Limpiar datos anteriores
+    
     try {
-      const url = `http://localhost:5000/consulta/posts-usuario/${selectedUserId}`;
+      const url = `http://localhost:5000/consultas/copias_con_detalle`;
       console.log("Fetching URL:", url);
 
       const response = await fetch(url);
       console.log("Response status:", response.status);
 
       if (!response.ok) {
-        throw new Error(`Error: ${response.status}`);
+        const errorText = await response.text();
+        console.error("Error response:", errorText);
+        throw new Error(`Error ${response.status}: ${errorText}`);
       }
 
       const data = await response.json();
-      console.log("✅ Posts del usuario recibidos:", data);
-      console.log("Cantidad de posts:", data.length);
+      console.log("✅ Copias recibidas:", data);
+      console.log("Cantidad de copias:", data.length);
+      
+      // Transformar datos si es necesario para aplanar objetos anidados
+      const transformedData = data.map(item => {
+        const flat = {
+          ISBN: item.ISBN,
+          numero: item.numero,
+        };
+        
+        // Aplanar libro
+        if (item.libro) {
+          flat.libro_titulo = item.libro.titulo;
+          flat.libro_autores = Array.isArray(item.libro.autores) 
+            ? item.libro.autores.join(', ') 
+            : item.libro.autores;
+        }
+        
+        // Aplanar edicion
+        if (item.edicion) {
+          flat.edicion_ISBN = item.edicion.ISBN;
+          flat.edicion_anio = item.edicion.anio;
+          flat.edicion_idioma = item.edicion.idioma;
+        }
+        
+        return flat;
+      });
 
-      setPostsUsuario(data);
+      setCopiasList(transformedData);
     } catch (err) {
-      console.error("❌ Error consultando posts del usuario:", err);
-      setPostsUsuario([]);
-      alert("Error al consultar posts del usuario: " + err.message);
+      console.error("❌ Error consultando copias:", err);
+      setCopiasList([]);
+      alert("Error al consultar copias: " + err.message);
     } finally {
       setLoadingConsulta1(false);
     }
   };
 
-  // Función para consultar comentarios de un POST (Inciso C - Consulta 2)
-  const consultarComentariosPost = async () => {
+  // ========== CONSULTA 2: Libros prestados por usuario ==========
+  const consultarLibrosPrestados = async () => {
     console.log("=== CONSULTA 2 INICIADA ===");
-    console.log("Post ID:", selectedPostId);
+    console.log("RUT:", selectedRUT);
 
-    if (!selectedPostId) {
-      alert("Por favor ingresa un ID de Post");
+    if (!selectedRUT) {
+      alert("Por favor ingresa un RUT");
       return;
     }
 
     setLoadingConsulta2(true);
+    setLibrosPrestados([]); // Limpiar datos anteriores
+    
     try {
-      const url = `http://localhost:5000/consulta/comentarios-post/${selectedPostId}`;
+      const url = `http://localhost:5000/consultas/libros_prestados_por_usuario/${selectedRUT}`;
       console.log("Fetching URL:", url);
 
       const response = await fetch(url);
       console.log("Response status:", response.status);
 
       if (!response.ok) {
-        throw new Error(`Error: ${response.status}`);
+        const errorText = await response.text();
+        console.error("Error response:", errorText);
+        throw new Error(`Error ${response.status}: ${errorText}`);
       }
 
       const data = await response.json();
-      console.log("✅ Comentarios del post recibidos:", data);
-      console.log("Cantidad de comentarios:", data.length);
+      console.log("✅ Libros prestados recibidos:", data);
+      console.log("Cantidad de préstamos:", data.length);
 
-      setComentariosPost(data);
+      // Transformar datos para aplanar objetos anidados
+      const transformedData = data.map(item => {
+        const flat = {
+          RUT: item.RUT,
+          ISBN: item.ISBN,
+          numero: item.numero,
+          Fecha_prestamo: item.Fecha_prestamo,
+          Fecha_devolucion: item.Fecha_devolucion,
+        };
+        
+        // Aplanar libro
+        if (item.libro) {
+          flat.libro_titulo = item.libro.titulo;
+          flat.libro_autores = Array.isArray(item.libro.autores) 
+            ? item.libro.autores.join(', ') 
+            : item.libro.autores;
+        }
+        
+        // Aplanar edicion
+        if (item.edicion) {
+          flat.edicion_ISBN = item.edicion.ISBN;
+          flat.edicion_anio = item.edicion.anio;
+          flat.edicion_idioma = item.edicion.idioma;
+        }
+        
+        return flat;
+      });
+
+      setLibrosPrestados(transformedData);
     } catch (err) {
-      console.error("❌ Error consultando comentarios:", err);
-      setComentariosPost([]);
-      alert("Error al consultar comentarios del post: " + err.message);
+      console.error("❌ Error consultando libros prestados:", err);
+      setLibrosPrestados([]);
+      alert("Error al consultar libros prestados: " + err.message);
     } finally {
       setLoadingConsulta2(false);
     }
@@ -296,7 +421,7 @@ function App() {
 
   return (
     <div className="page">
-      <h1>CRUD NEO4J</h1>
+      <h1>CRUD BIBLIOTECA - MONGODB</h1>
       <div className="img-container">
         <h2>Modelo Entidad Relación</h2>
         <img src={modeloER} />
@@ -305,7 +430,7 @@ function App() {
 
       {selectedTab === null ? (
         <div className="table-container">
-          <p>Selecciona Usuario, Post o Comentario para comenzar</p>
+          <p>Selecciona una entidad para comenzar (Usuario, Autor, Libro, Edición, Copia o Préstamo)</p>
         </div>
       ) : (
         <div className="table-container">
@@ -336,7 +461,10 @@ function App() {
 
           {modalOpen && (
             <Modal
-              closeModal={() => setModalOpen(false)}
+              closeModal={() => {
+                setModalOpen(false);
+                setRowToEdit(null);
+              }}
               onSubmit={handleSubmit}
               defaultValue={rowToEdit !== null && rows[rowToEdit]}
               formFields={getFormFields()}
@@ -346,11 +474,13 @@ function App() {
         </div>
       )}
 
-      {/* Sección Inciso C */}
+      {/* ========== SECCIÓN DE CONSULTAS ========== */}
       <div style={{ marginTop: "60px", marginBottom: "60px" }}>
-        <h2 style={{ marginBottom: "40px" }}>Inciso C - Consultas</h2>
+        <h2 style={{ marginBottom: "40px", color: "var(--color4)" }}>
+          📊 Consultas Especiales
+        </h2>
 
-        {/* Consulta 1: Posts de un Usuario */}
+        {/* CONSULTA 1: Copias con Detalle */}
         <div
           className="table-container"
           style={{
@@ -368,9 +498,11 @@ function App() {
               fontFamily: "Arial, Helvetica, sans-serif",
             }}
           >
-            Consulta 1: Posts de un Usuario
+            📚 CONSULTA 1: Copias de Libros con Detalle
           </h3>
-          <p>Muestra los posts que ha creado un usuario específico</p>
+          <p style={{ marginBottom: "20px" }}>
+            Muestra un listado completo de todas las copias de libros incluyendo información de AUTOR, LIBRO, EDICIÓN y COPIA
+          </p>
 
           <div
             style={{
@@ -381,56 +513,36 @@ function App() {
               flexWrap: "wrap",
             }}
           >
-            <label
-              style={{
-                color: "var(--color4)",
-                fontWeight: "bold",
-                fontFamily: "Arial, Helvetica, sans-serif",
-              }}
-            >
-              ID del Usuario:
-            </label>
-            <input
-              type="text"
-              value={selectedUserId}
-              onChange={(e) => setSelectedUserId(e.target.value)}
-              placeholder="Ej: u1"
-              style={{
-                padding: "10px",
-                borderRadius: "10px",
-                border: "none",
-                width: "200px",
-                fontFamily: "Arial, Helvetica, sans-serif",
-              }}
-            />
             <button
               className="btn"
-              onClick={consultarPostsUsuario}
+              onClick={consultarCopiasDetalle}
               disabled={loadingConsulta1}
             >
-              {loadingConsulta1 ? "Consultando..." : "Consultar"}
+              {loadingConsulta1 ? "Consultando..." : "🔍 Consultar Copias"}
             </button>
           </div>
 
           {loadingConsulta1 ? (
             <p>Cargando...</p>
-          ) : postsUsuario.length > 0 ? (
+          ) : copiasList.length > 0 ? (
             <div className="table-wrapper">
+              <p style={{ marginBottom: "15px", fontWeight: "bold" }}>
+                📋 Total de copias encontradas: {copiasList.length}
+              </p>
               <Table
-                rows={postsUsuario}
+                rows={copiasList}
                 deleteRow={() => {}}
                 editRow={() => {}}
               />
             </div>
           ) : (
             <p>
-              No hay posts para mostrar. Ingresa un ID de usuario y presiona
-              Consultar.
+              No hay copias para mostrar. Presiona el botón "Consultar Copias" para ver el listado.
             </p>
           )}
         </div>
 
-        {/* Consulta 2: Comentarios de un Post */}
+        {/* CONSULTA 2: Libros Prestados por Usuario */}
         <div
           className="table-container"
           style={{ minHeight: "auto", height: "auto", padding: "30px" }}
@@ -443,12 +555,10 @@ function App() {
               fontFamily: "Arial, Helvetica, sans-serif",
             }}
           >
-            Consulta 2: Comentarios de un POST
+            👤 CONSULTA 2: Libros Prestados por Usuario
           </h3>
-          <p>
-            Lista los comentarios de un POST mostrando fecha de creación, fecha
-            de autorización, usuario que lo hizo y si fue "megusta" o
-            "nomegusta"
+          <p style={{ marginBottom: "20px" }}>
+            Lista todos los libros prestados por un usuario específico, incluyendo detalles del libro, edición y fechas de préstamo
           </p>
 
           <div
@@ -467,13 +577,13 @@ function App() {
                 fontFamily: "Arial, Helvetica, sans-serif",
               }}
             >
-              ID del Post:
+              RUT del Usuario:
             </label>
             <input
               type="text"
-              value={selectedPostId}
-              onChange={(e) => setSelectedPostId(e.target.value)}
-              placeholder="Ej: p1"
+              value={selectedRUT}
+              onChange={(e) => setSelectedRUT(e.target.value)}
+              placeholder="Ej: 12345678-9"
               style={{
                 padding: "10px",
                 borderRadius: "10px",
@@ -484,27 +594,29 @@ function App() {
             />
             <button
               className="btn"
-              onClick={consultarComentariosPost}
+              onClick={consultarLibrosPrestados}
               disabled={loadingConsulta2}
             >
-              {loadingConsulta2 ? "Consultando..." : "Consultar"}
+              {loadingConsulta2 ? "Consultando..." : "🔍 Consultar Préstamos"}
             </button>
           </div>
 
           {loadingConsulta2 ? (
             <p>Cargando...</p>
-          ) : comentariosPost.length > 0 ? (
+          ) : librosPrestados.length > 0 ? (
             <div className="table-wrapper">
+              <p style={{ marginBottom: "15px", fontWeight: "bold" }}>
+                📋 Total de préstamos encontrados: {librosPrestados.length}
+              </p>
               <Table
-                rows={comentariosPost}
+                rows={librosPrestados}
                 deleteRow={() => {}}
                 editRow={() => {}}
               />
             </div>
           ) : (
             <p>
-              No hay comentarios para mostrar. Ingresa un ID de post y presiona
-              Consultar.
+              No hay préstamos para mostrar. Ingresa un RUT y presiona "Consultar Préstamos".
             </p>
           )}
         </div>

@@ -3,6 +3,7 @@ from bson.objectid import ObjectId
 
 bp = Blueprint("autores", __name__)
 
+
 def col():
     return current_app.config["DB"].autores
 
