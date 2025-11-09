@@ -10,13 +10,22 @@ export const Modal = ({ closeModal, onSubmit, defaultValue, formFields, entityTy
   const [errors, setErrors] = useState("");
 
   const validateForm = () => {
-    if (Object.values(formState).every((value) => value && value.trim !== "")) {
+    // Validar que todos los campos tengan valores no vacíos
+    const hasEmptyFields = Object.values(formState).some((value) => {
+      if (value === null || value === undefined) return true;
+      if (typeof value === "string" && value.trim() === "") return true;
+      return false;
+    });
+
+    if (!hasEmptyFields) {
       setErrors("");
       return true;
     } else {
       let errorFields = [];
       for (const [key, value] of Object.entries(formState)) {
-        if (!value) errorFields.push(key);
+        if (!value || (typeof value === "string" && value.trim() === "")) {
+          errorFields.push(key);
+        }
       }
 
       setErrors(errorFields.join(", "));
@@ -44,30 +53,31 @@ export const Modal = ({ closeModal, onSubmit, defaultValue, formFields, entityTy
     const cleanedData = {};
 
     for (const [key, value] of Object.entries(formState)) {
-      // Saltar campos vacíos
-      if (value === "" || value === null || value === undefined) {
-        console.log(`⏭️ Saltando campo vacío: ${key}`);
-        continue;
+      // Normalizar nombre de campo RUT a minúscula para usuarios
+      let fieldName = key;
+      if (key === "RUT" && entityType === 1) {
+        fieldName = "rut";
+        console.log(`🔄 Normalizando ${key} → ${fieldName}`);
       }
-
+      
       // Procesar según el tipo de campo y entidad
-      if (key === "numero" && entityType === 5) {
+      if (key === "numero" && (entityType === 5 || entityType === 6)) {
         // Número de copia - debe ser número entero
-        cleanedData[key] = parseInt(value, 10);
-        console.log(`🔢 Convirtiendo ${key} a número:`, cleanedData[key]);
+        cleanedData[fieldName] = value ? parseInt(value, 10) : "";
+        console.log(`🔢 Convirtiendo ${fieldName} a número:`, cleanedData[fieldName]);
       } else if (key === "anio" && entityType === 4) {
         // Año de edición - debe ser número entero
-        cleanedData[key] = parseInt(value, 10);
-        console.log(`🔢 Convirtiendo ${key} a número:`, cleanedData[key]);
+        cleanedData[fieldName] = value ? parseInt(value, 10) : "";
+        console.log(`🔢 Convirtiendo ${fieldName} a número:`, cleanedData[fieldName]);
       } else if (key === "autores" && entityType === 3) {
         // Autores de libro - debe ser array
-        const authorsArray = value.split(",").map(author => author.trim()).filter(a => a);
-        cleanedData[key] = authorsArray;
-        console.log(`📚 Convirtiendo ${key} a array:`, cleanedData[key]);
+        const authorsArray = value ? value.split(",").map(author => author.trim()).filter(a => a) : [];
+        cleanedData[fieldName] = authorsArray;
+        console.log(`📚 Convirtiendo ${fieldName} a array:`, cleanedData[fieldName]);
       } else {
         // Otros campos se envían como string limpio
-        cleanedData[key] = typeof value === "string" ? value.trim() : value;
-        console.log(`✏️ Campo ${key}:`, cleanedData[key]);
+        cleanedData[fieldName] = typeof value === "string" ? value.trim() : value;
+        console.log(`✏️ Campo ${fieldName}:`, cleanedData[fieldName]);
       }
     }
 
