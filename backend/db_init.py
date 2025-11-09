@@ -1,5 +1,6 @@
 from pymongo import MongoClient, ASCENDING
 from config import MONGO_URI, DB_NAME
+from datetime import datetime
 
 client = MongoClient(MONGO_URI)
 db = client[DB_NAME]
@@ -33,68 +34,103 @@ def create_collections():
 
 
 def insert_sample_data():
-    # Insertar ejemplo solo si no existe la edición de ejemplo
-    if db.ediciones.find_one({"ISBN": "978-0307474728"}):
-        print("ℹ️ Datos de ejemplo ya existen. No se insertarán nuevos datos.")
-        return
+    db.usuarios.delete_many({})
+    db.autores.delete_many({})
+    db.libros.delete_many({})
+    db.ediciones.delete_many({})
+    db.copias.delete_many({})
+    db.prestamos.delete_many({})
 
-    # Autor (PK: nombre)
-    try:
-        db.autores.insert_one({"nombre": "Gabriel García Márquez"})
-    except Exception:
-        pass
+    # -----------------------------
+    # Datos de ejemplo
+    # -----------------------------
 
-    # Libro (PK: titulo, autores: array de nombres)
-    try:
-        db.libros.insert_one({
-            "titulo": "Cien años de soledad",
+    # Usuarios
+    usuarios_data = [
+        {"RUT": 101, "nombre": "Ana Pérez"},
+        {"RUT": 102, "nombre": "Carlos Gómez"},
+        {"RUT": 103, "nombre": "María Torres"},
+    ]
+    db.usuarios.insert_many(usuarios_data)
+
+    # Autores
+    autores_data = [
+        {"nombre": "Gabriel García Márquez"},
+        {"nombre": "J.K. Rowling"},
+        {"nombre": "George Orwell"},
+    ]
+    db.autores.insert_many(autores_data)
+
+    # Libros
+    libros_data = [
+        {
+            "titulo": "Cien Años de Soledad",
             "autores": ["Gabriel García Márquez"]
-        })
-    except Exception:
-        pass
+        },
+        {
+            "titulo": "Harry Potter y la Piedra Filosofal",
+            "autores": ["J.K. Rowling"]
+        },
+        {
+            "titulo": "1984",
+            "autores": ["George Orwell"]
+        }
+    ]
+    db.libros.insert_many(libros_data)
 
-    # Edicion (PK: ISBN, referencia a libro por titulo)
-    try:
-        db.ediciones.insert_one({
-            "ISBN": "978-0307474728",
-            "titulo": "Cien años de soledad",
-            "anio": 2003,
-            "idioma": "Español"
-        })
-    except Exception:
-        pass
+    # Ediciones
+    ediciones_data = [
+        {"ISBN": "9780307474728", "titulo": "Cien Años de Soledad", "anio": 1967, "idioma": "Español"},
+        {"ISBN": "9788478884452", "titulo": "Harry Potter y la Piedra Filosofal", "anio": 1997, "idioma": "Español"},
+        {"ISBN": "9780451524935", "titulo": "1984", "anio": 1949, "idioma": "Inglés"}
+    ]
+    db.ediciones.insert_many(ediciones_data)
 
-    # Copia (entidad débil) - clave parcial numero + ISBN
-    try:
-        db.copias.insert_one({
-            "ISBN": "978-0307474728",
-            "numero": 1
-        })
-    except Exception:
-        pass
+    # Copias
+    copias_data = [
+        {"ISBN": "9780307474728", "numero": 1},
+        {"ISBN": "9780307474728", "numero": 2},
+        {"ISBN": "9788478884452", "numero": 1},
+        {"ISBN": "9780451524935", "numero": 1},
+    ]
+    db.copias.insert_many(copias_data)
 
-    # Usuario (PK: RUT)
-    try:
-        db.usuarios.insert_one({
-            "RUT": "109876543-2",
-            "nombre": "Juan Pérez"
-        })
-    except Exception:
-        pass
-
-    # Prestamo (relación)
-    try:
-        db.prestamos.insert_one({
-            "RUT": "109876543-2",
-            "ISBN": "978-0307474728",
+    # Préstamos
+    prestamos_data = [
+        {
+            "RUT": 101,
+            "ISBN": "9780307474728",
             "numero": 1,
-            "Fecha_prestamo": "2025-11-03",
-            "Fecha_devolucion": "2025-11-15"
-        })
-    except Exception:
-        pass
+            "fecha_prestamo": "2025-11-01",
+            "fecha_devolucion": "2025-11-10"
+        },
+        {
+            "RUT": 102,
+            "ISBN": "9788478884452",
+            "numero": 1,
+            "fecha_prestamo": "2025-11-02",
+            "fecha_devolucion": "2025-11-09"
+        },
+        {
+            "RUT": 103,
+            "ISBN": "9780451524935",
+            "numero": 1,
+            "fecha_prestamo": "2025-11-03",
+            "fecha_devolucion": "2025-11-12"
+        }
+    ]
+    db.prestamos.insert_many(prestamos_data)
 
-    print("✅ Datos de ejemplo insertados (o ya existían).")
+    # -----------------------------
+    # Confirmación
+    # -----------------------------
+    print("Datos insertados correctamente.")
+    print(f"Usuarios: {db.usuarios.count_documents({})}")
+    print(f"Autores: {db.autores.count_documents({})}")
+    print(f"Libros: {db.libros.count_documents({})}")
+    print(f"Ediciones: {db.ediciones.count_documents({})}")
+    print(f"Copias: {db.copias.count_documents({})}")
+    print(f"Préstamos: {db.prestamos.count_documents({})}")
 
 if __name__ == "__main__":
     print("⏳ Inicializando base de datos...")

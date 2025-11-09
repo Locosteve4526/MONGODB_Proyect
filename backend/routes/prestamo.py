@@ -16,11 +16,11 @@ def copias_col():
 @bp.route("/", methods=["POST"])
 def crear_prestamo():
     data = request.json or {}
-    RUT = (data.get("RUT") or "").strip()
+    RUT = data.get("RUT")
     ISBN = (data.get("ISBN") or "").strip()
     numero = data.get("numero")
-    Fecha_prestamo = (data.get("Fecha_prestamo") or "").strip()
-    Fecha_devolucion = (data.get("Fecha_devolucion") or "").strip()
+    Fecha_prestamo = (data.get("fecha_prestamo") or "").strip()
+    Fecha_devolucion = (data.get("fecha_devolucion") or "").strip()
 
     if not (RUT and ISBN and numero is not None and Fecha_prestamo and Fecha_devolucion):
         return jsonify({"error": "Faltan campos requeridos"}), 400
@@ -31,13 +31,16 @@ def crear_prestamo():
 
     if not copias_col().find_one({"ISBN": ISBN, "numero": numero}):
         return jsonify({"error": f"Copia no existe: ISBN {ISBN} Numero {numero}"}), 400
+    
+    if col().find_one({"RUT": RUT, "ISBN": ISBN, "numero": numero}):
+        return jsonify({"error": f"Ya existe un prestamo con esos datos: RUT {RUT} ISBN {ISBN} Numero {numero}"}), 400
 
     col().insert_one({
         "RUT": RUT,
         "ISBN": ISBN,
         "numero": numero,
-        "Fecha_prestamo": Fecha_prestamo,
-        "Fecha_devolucion": Fecha_devolucion
+        "fecha_prestamo": Fecha_prestamo,
+        "fecha_devolucion": Fecha_devolucion
     })
 
     return jsonify({"msg": "Préstamo registrado correctamente"}), 201
@@ -70,13 +73,9 @@ def obtener_prestamo():
 
 
 
-@bp.route("/actualizar", methods=["PUT"])
-def actualizar_prestamo():
+@bp.route("/<int:RUT>/<string:ISBN>/<int:numero>", methods=["PUT"])
+def actualizar_prestamo(RUT, ISBN, numero):
     data = request.json or {}
-
-    RUT = data.get("RUT")
-    ISBN = data.get("ISBN")
-    numero = data.get("numero")
 
     if not (RUT and ISBN and numero is not None):
         return jsonify({"error": "Debe enviar RUT, ISBN y numero del préstamo a actualizar"}), 400
@@ -95,13 +94,8 @@ def actualizar_prestamo():
 
 
 
-@bp.route("/eliminar", methods=["DELETE"])
-def eliminar_prestamo():
-    data = request.json or {}
-    RUT = data.get("RUT")
-    ISBN = data.get("ISBN")
-    numero = data.get("numero")
-
+@bp.route("/<int:RUT>/<string:ISBN>/<int:numero>", methods=["DELETE"])
+def eliminar_prestamo(RUT, ISBN, numero):
     if not (RUT and ISBN and numero is not None):
         return jsonify({"error": "Debe enviar RUT, ISBN y numero del préstamo a eliminar"}), 400
 

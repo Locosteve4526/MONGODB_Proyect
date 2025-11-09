@@ -2,7 +2,13 @@ import React, { useState } from "react";
 
 import "./Modal.css";
 
-export const Modal = ({ closeModal, onSubmit, defaultValue, formFields, entityType }) => {
+export const Modal = ({
+  closeModal,
+  onSubmit,
+  defaultValue,
+  formFields,
+  entityType,
+}) => {
   const [formState, setFormState] = useState(
     defaultValue || Object.fromEntries(formFields.map((field) => [field, ""]))
   );
@@ -53,30 +59,45 @@ export const Modal = ({ closeModal, onSubmit, defaultValue, formFields, entityTy
     const cleanedData = {};
 
     for (const [key, value] of Object.entries(formState)) {
-      // Normalizar nombre de campo RUT a minúscula para usuarios
       let fieldName = key;
-      if (key === "RUT" && entityType === 1) {
-        fieldName = "rut";
-        console.log(`🔄 Normalizando ${key} → ${fieldName}`);
-      }
-      
       // Procesar según el tipo de campo y entidad
-      if (key === "numero" && (entityType === 5 || entityType === 6)) {
+      if (key === "RUT" && (entityType === 1 || entityType === 6)) {
+        cleanedData[fieldName] = value ? parseInt(value, 10) : "";
+        console.log(
+          `🔢 Convirtiendo ${fieldName} a número:`,
+          cleanedData[fieldName]
+        );
+      } else if (key === "numero" && (entityType === 5 || entityType === 6)) {
         // Número de copia - debe ser número entero
         cleanedData[fieldName] = value ? parseInt(value, 10) : "";
-        console.log(`🔢 Convirtiendo ${fieldName} a número:`, cleanedData[fieldName]);
+        console.log(
+          `🔢 Convirtiendo ${fieldName} a número:`,
+          cleanedData[fieldName]
+        );
       } else if (key === "anio" && entityType === 4) {
         // Año de edición - debe ser número entero
         cleanedData[fieldName] = value ? parseInt(value, 10) : "";
-        console.log(`🔢 Convirtiendo ${fieldName} a número:`, cleanedData[fieldName]);
+        console.log(
+          `🔢 Convirtiendo ${fieldName} a número:`,
+          cleanedData[fieldName]
+        );
       } else if (key === "autores" && entityType === 3) {
         // Autores de libro - debe ser array
-        const authorsArray = value ? value.split(",").map(author => author.trim()).filter(a => a) : [];
+        const authorsArray = value
+          ? value
+              .split(",")
+              .map((author) => author.trim())
+              .filter((a) => a)
+          : [];
         cleanedData[fieldName] = authorsArray;
-        console.log(`📚 Convirtiendo ${fieldName} a array:`, cleanedData[fieldName]);
+        console.log(
+          `📚 Convirtiendo ${fieldName} a array:`,
+          cleanedData[fieldName]
+        );
       } else {
         // Otros campos se envían como string limpio
-        cleanedData[fieldName] = typeof value === "string" ? value.trim() : value;
+        cleanedData[fieldName] =
+          typeof value === "string" ? value.trim() : value;
         console.log(`✏️ Campo ${fieldName}:`, cleanedData[fieldName]);
       }
     }
@@ -91,7 +112,12 @@ export const Modal = ({ closeModal, onSubmit, defaultValue, formFields, entityTy
 
   // Función para determinar el tipo de input
   const getInputType = (field) => {
-    if (field === "fechorCom" || field === "fechorAut" || field === "Fecha_prestamo" || field === "Fecha_devolucion") {
+    if (
+      field === "fechorCom" ||
+      field === "fechorAut" ||
+      field === "fecha_prestamo" ||
+      field === "fecha_devolucion"
+    ) {
       return "date";
     }
     if (field === "anio" || field === "numero") {
@@ -111,8 +137,8 @@ export const Modal = ({ closeModal, onSubmit, defaultValue, formFields, entityTy
     if (field === "anio") return "Ej: 2023";
     if (field === "idioma") return "Ej: Español";
     if (field === "numero") return "Número de copia";
-    if (field === "Fecha_prestamo") return "Fecha de préstamo";
-    if (field === "Fecha_devolucion") return "Fecha de devolución";
+    if (field === "fecha_prestamo") return "Fecha de préstamo";
+    if (field === "fecha_devolucion") return "Fecha de devolución";
     return "";
   };
 
@@ -131,7 +157,7 @@ export const Modal = ({ closeModal, onSubmit, defaultValue, formFields, entityTy
             return (
               <div key={field} className="form-group">
                 <label htmlFor={field}>{field}</label>
-                
+
                 {/* Select especial para likeNotLike */}
                 {field === "likeNotLike" ? (
                   <select
@@ -144,7 +170,7 @@ export const Modal = ({ closeModal, onSubmit, defaultValue, formFields, entityTy
                       border: "1px solid #ddd",
                       width: "100%",
                       fontFamily: "Arial, Helvetica, sans-serif",
-                      fontSize: "14px"
+                      fontSize: "14px",
                     }}
                   >
                     <option value="">Selecciona una opción...</option>
@@ -159,7 +185,7 @@ export const Modal = ({ closeModal, onSubmit, defaultValue, formFields, entityTy
                     onChange={handleChange}
                     placeholder={getPlaceholder(field, entityType)}
                     style={{
-                      fontFamily: "Arial, Helvetica, sans-serif"
+                      fontFamily: "Arial, Helvetica, sans-serif",
                     }}
                   />
                 )}

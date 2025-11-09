@@ -68,7 +68,7 @@ function App() {
 
       setRows(data);
     } catch (err) {
-      const errorMsg = err.message.includes("Failed to fetch") 
+      const errorMsg = err.message.includes("Failed to fetch")
         ? "No se puede conectar al servidor. Verifica que Flask esté corriendo en http://localhost:5000"
         : err.message;
       setError(errorMsg);
@@ -94,7 +94,7 @@ function App() {
     let nodeId;
     if (selectedTab === 1) {
       // Para usuarios, el backend busca por "rut" en minúscula
-      nodeId = encodeURIComponent(rowToDelete.rut || rowToDelete.RUT);
+      nodeId = encodeURIComponent(rowToDelete.RUT);
     } else if (selectedTab === 2) {
       nodeId = encodeURIComponent(rowToDelete.nombre);
     } else if (selectedTab === 3) {
@@ -106,14 +106,17 @@ function App() {
       const numero = encodeURIComponent(rowToDelete.numero);
       nodeId = `${isbn}/${numero}`;
     } else if (selectedTab === 6) {
-      const rut = encodeURIComponent(rowToDelete.rut || rowToDelete.RUT);
+      const rut = encodeURIComponent(rowToDelete.RUT);
       const isbn = encodeURIComponent(rowToDelete.ISBN);
       const numero = encodeURIComponent(rowToDelete.numero);
       nodeId = `${rut}/${isbn}/${numero}`;
     }
 
     console.log("🗑️ Eliminando con ID codificado:", nodeId);
-    console.log("🗑️ URL completa:", `http://localhost:5000${config.endpoint}/${nodeId}`);
+    console.log(
+      "🗑️ URL completa:",
+      `http://localhost:5000${config.endpoint}/${nodeId}`
+    );
 
     if (!confirm(`¿Estás seguro de eliminar este registro?`)) {
       return;
@@ -122,11 +125,11 @@ function App() {
     try {
       const response = await fetch(
         `http://localhost:5000${config.endpoint}/${nodeId}`,
-        { 
+        {
           method: "DELETE",
           headers: {
             "Content-Type": "application/json",
-          }
+          },
         }
       );
 
@@ -154,7 +157,12 @@ function App() {
     console.log("=== HANDLE SUBMIT ===");
     console.log("📥 Datos recibidos del formulario (newRow):", newRow);
     console.log("📋 Tipo de datos:", typeof newRow);
-    console.log("🏷️ Tab seleccionado:", selectedTab, "- Entidad:", config.label);
+    console.log(
+      "🏷️ Tab seleccionado:",
+      selectedTab,
+      "- Entidad:",
+      config.label
+    );
 
     // Los datos ya vienen con los campos correctos del formulario
     const dataToSend = { ...newRow };
@@ -166,7 +174,7 @@ function App() {
         // ========== CREAR NUEVO ==========
         console.log("➕ MODO: Creando nuevo registro");
         console.log("🔗 URL:", `http://localhost:5000${config.endpoint}/`);
-        
+
         const response = await fetch(
           `http://localhost:5000${config.endpoint}/`,
           {
@@ -182,7 +190,7 @@ function App() {
         if (!response.ok) {
           const responseText = await response.text();
           console.error("❌ Error response (texto):", responseText);
-          
+
           let errorData;
           try {
             errorData = JSON.parse(responseText);
@@ -190,8 +198,10 @@ function App() {
           } catch {
             errorData = { error: responseText };
           }
-          
-          throw new Error(errorData.error || responseText || `Error: ${response.status}`);
+
+          throw new Error(
+            errorData.error || responseText || `Error: ${response.status}`
+          );
         }
 
         const responseData = await response.json();
@@ -206,12 +216,12 @@ function App() {
         // ========== ACTUALIZAR EXISTENTE ==========
         const rowData = rows[rowToEdit];
         console.log("📝 Datos del row original:", rowData);
-        
+
         let nodeId;
-        
+
         if (selectedTab === 1) {
           // Para usuarios, el backend busca por "RUT" en mayúscula para UPDATE
-          nodeId = encodeURIComponent(rowData.rut || rowData.RUT);
+          nodeId = encodeURIComponent(rowData.RUT);
         } else if (selectedTab === 2) {
           nodeId = encodeURIComponent(rowData.nombre);
         } else if (selectedTab === 3) {
@@ -223,14 +233,17 @@ function App() {
           const numero = encodeURIComponent(rowData.numero);
           nodeId = `${isbn}/${numero}`;
         } else if (selectedTab === 6) {
-          const rut = encodeURIComponent(rowData.rut || rowData.RUT);
+          const rut = encodeURIComponent(rowData.RUT);
           const isbn = encodeURIComponent(rowData.ISBN);
           const numero = encodeURIComponent(rowData.numero);
           nodeId = `${rut}/${isbn}/${numero}`;
         }
 
         console.log("🔄 Actualizando con ID:", nodeId);
-        console.log("🔄 URL:", `http://localhost:5000${config.endpoint}/${nodeId}`);
+        console.log(
+          "🔄 URL:",
+          `http://localhost:5000${config.endpoint}/${nodeId}`
+        );
         console.log("📝 Datos a actualizar:", dataToSend);
 
         const response = await fetch(
@@ -286,7 +299,7 @@ function App() {
       case 5: // Copias
         return ["ISBN", "numero"];
       case 6: // Préstamos
-        return ["RUT", "ISBN", "numero", "Fecha_prestamo", "Fecha_devolucion"];
+        return ["RUT", "ISBN", "numero", "fecha_prestamo", "fecha_devolucion"];
       default:
         return [];
     }
@@ -295,10 +308,10 @@ function App() {
   // ========== CONSULTA 1: Copias con detalle ==========
   const consultarCopiasDetalle = async () => {
     console.log("=== CONSULTA 1 INICIADA ===");
-    
+
     setLoadingConsulta1(true);
     setCopiasList([]); // Limpiar datos anteriores
-    
+
     try {
       const url = `http://localhost:5000/consultas/copias_con_detalle`;
       console.log("Fetching URL:", url);
@@ -315,29 +328,29 @@ function App() {
       const data = await response.json();
       console.log("✅ Copias recibidas:", data);
       console.log("Cantidad de copias:", data.length);
-      
+
       // Transformar datos si es necesario para aplanar objetos anidados
-      const transformedData = data.map(item => {
+      const transformedData = data.map((item) => {
         const flat = {
           ISBN: item.ISBN,
           numero: item.numero,
         };
-        
+
         // Aplanar libro
         if (item.libro) {
           flat.libro_titulo = item.libro.titulo;
-          flat.libro_autores = Array.isArray(item.libro.autores) 
-            ? item.libro.autores.join(', ') 
+          flat.libro_autores = Array.isArray(item.libro.autores)
+            ? item.libro.autores.join(", ")
             : item.libro.autores;
         }
-        
+
         // Aplanar edicion
         if (item.edicion) {
           flat.edicion_ISBN = item.edicion.ISBN;
           flat.edicion_anio = item.edicion.anio;
           flat.edicion_idioma = item.edicion.idioma;
         }
-        
+
         return flat;
       });
 
@@ -363,7 +376,7 @@ function App() {
 
     setLoadingConsulta2(true);
     setLibrosPrestados([]); // Limpiar datos anteriores
-    
+
     try {
       const url = `http://localhost:5000/consultas/libros_prestados_por_usuario/${selectedRUT}`;
       console.log("Fetching URL:", url);
@@ -382,30 +395,30 @@ function App() {
       console.log("Cantidad de préstamos:", data.length);
 
       // Transformar datos para aplanar objetos anidados
-      const transformedData = data.map(item => {
+      const transformedData = data.map((item) => {
         const flat = {
           RUT: item.RUT,
           ISBN: item.ISBN,
           numero: item.numero,
-          Fecha_prestamo: item.Fecha_prestamo,
-          Fecha_devolucion: item.Fecha_devolucion,
+          Fecha_prestamo: item.fecha_prestamo,
+          Fecha_devolucion: item.fecha_devolucion,
         };
-        
+
         // Aplanar libro
         if (item.libro) {
           flat.libro_titulo = item.libro.titulo;
-          flat.libro_autores = Array.isArray(item.libro.autores) 
-            ? item.libro.autores.join(', ') 
+          flat.libro_autores = Array.isArray(item.libro.autores)
+            ? item.libro.autores.join(", ")
             : item.libro.autores;
         }
-        
+
         // Aplanar edicion
         if (item.edicion) {
           flat.edicion_ISBN = item.edicion.ISBN;
           flat.edicion_anio = item.edicion.anio;
           flat.edicion_idioma = item.edicion.idioma;
         }
-        
+
         return flat;
       });
 
@@ -430,7 +443,10 @@ function App() {
 
       {selectedTab === null ? (
         <div className="table-container">
-          <p>Selecciona una entidad para comenzar (Usuario, Autor, Libro, Edición, Copia o Préstamo)</p>
+          <p>
+            Selecciona una entidad para comenzar (Usuario, Autor, Libro,
+            Edición, Copia o Préstamo)
+          </p>
         </div>
       ) : (
         <div className="table-container">
@@ -501,7 +517,8 @@ function App() {
             📚 CONSULTA 1: Copias de Libros con Detalle
           </h3>
           <p style={{ marginBottom: "20px" }}>
-            Muestra un listado completo de todas las copias de libros incluyendo información de AUTOR, LIBRO, EDICIÓN y COPIA
+            Muestra un listado completo de todas las copias de libros incluyendo
+            información de AUTOR, LIBRO, EDICIÓN y COPIA
           </p>
 
           <div
@@ -537,7 +554,8 @@ function App() {
             </div>
           ) : (
             <p>
-              No hay copias para mostrar. Presiona el botón "Consultar Copias" para ver el listado.
+              No hay copias para mostrar. Presiona el botón "Consultar Copias"
+              para ver el listado.
             </p>
           )}
         </div>
@@ -558,7 +576,8 @@ function App() {
             👤 CONSULTA 2: Libros Prestados por Usuario
           </h3>
           <p style={{ marginBottom: "20px" }}>
-            Lista todos los libros prestados por un usuario específico, incluyendo detalles del libro, edición y fechas de préstamo
+            Lista todos los libros prestados por un usuario específico,
+            incluyendo detalles del libro, edición y fechas de préstamo
           </p>
 
           <div
@@ -616,7 +635,8 @@ function App() {
             </div>
           ) : (
             <p>
-              No hay préstamos para mostrar. Ingresa un RUT y presiona "Consultar Préstamos".
+              No hay préstamos para mostrar. Ingresa un RUT y presiona
+              "Consultar Préstamos".
             </p>
           )}
         </div>

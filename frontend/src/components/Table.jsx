@@ -30,7 +30,8 @@ export const Table = ({ rows, deleteRow, editRow }) => {
             return (
               <tr key={idx}>
                 {Object.entries(row).map(([column, value]) => {
-                  return column === Object.keys(row)[0] ? (
+                  return column === Object.keys(row)[0] &&
+                    Object.keys(row).length > 1 ? (
                     <td key={`${Object.keys(row)[0]}-${value}-${idx}`}>
                       {value}
                     </td>

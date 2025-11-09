@@ -16,16 +16,16 @@ def crear_usuario():
         data = request.json or {}
         print(f"📥 Datos recibidos para crear usuario: {data}")
         
-        RUT = (data.get("rut") or "").strip()
+        RUT = (data.get("RUT") or "").strip()
         nombre = (data.get("nombre") or "").strip()
         
         if not RUT or not nombre:
             return jsonify({"error": "Faltan RUT o nombre"}), 400
         
-        if col().find_one({"rut": RUT}):
+        if col().find_one({"RUT": RUT}):
             return jsonify({"error": "Usuario ya existe"}), 400
         
-        col().insert_one({"rut": RUT, "nombre": nombre})
+        col().insert_one({"RUT": RUT, "nombre": nombre})
         print(f"✅ Usuario creado: RUT={RUT}, nombre={nombre}")
         return jsonify({"msg": "Usuario creado", "RUT": RUT}), 201
     except Exception as e:
@@ -42,11 +42,11 @@ def listar_usuarios():
         print(f"❌ Error listando usuarios: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-@bp.route("/<string:RUT>", methods=["OPTIONS"])
+@bp.route("/<int:RUT>", methods=["OPTIONS"])
 def handle_options_with_rut(RUT):
     return "", 204
 
-@bp.route("/<string:RUT>", methods=["GET"])
+@bp.route("/<int:RUT>", methods=["GET"])
 def obtener_usuario(RUT):
     try:
         doc = col().find_one({"RUT": RUT}, {"_id": 0})
@@ -57,7 +57,7 @@ def obtener_usuario(RUT):
         print(f"❌ Error obteniendo usuario: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-@bp.route("/<string:RUT>", methods=["PUT"])
+@bp.route("/<int:RUT>", methods=["PUT"])
 def actualizar_usuario(RUT):
     try:
         data = request.json or {}
@@ -79,11 +79,11 @@ def actualizar_usuario(RUT):
         print(f"❌ Error actualizando usuario: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-@bp.route("/<string:RUT>", methods=["DELETE"])
+@bp.route("/<int:RUT>", methods=["DELETE"])
 def borrar_usuario(RUT):
     try:
         print(f"🗑️ Intentando eliminar usuario: {RUT}")
-        res = col().delete_one({"rut": RUT})
+        res = col().delete_one({"RUT": RUT})
         
         if res.deleted_count == 0:
             return jsonify({"error": "Usuario no encontrado"}), 404
